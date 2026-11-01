@@ -1,0 +1,948 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0e1116">
+<title>二维码收发助手</title>
+<style>
+  :root{
+    --bg:#0e1116;
+    --card:#171b22;
+    --card2:#1e242d;
+    --line:#2b323d;
+    --text:#e9edf2;
+    --muted:#98a2b3;
+    --primary:#3b82f6;
+    --primary-d:#2563eb;
+    --ok:#22c55e;
+    --err:#ef4444;
+    --warn:#f59e0b;
+    --radius:16px;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%}
+  body{
+    margin:0;
+    background:radial-gradient(1200px 600px at 50% -10%,#1b2433 0%,var(--bg) 55%);
+    color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+    font-size:16px;
+    line-height:1.55;
+    padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom);
+    display:flex;
+    justify-content:center;
+  }
+
+  .app{
+    width:100%;
+    max-width:960px;   /* 桌面端合适宽度，不宽不窄 */
+    padding:20px 20px 40px;
+    display:flex;
+    flex-direction:column;
+    gap:16px;
+  }
+
+  /* ---------- 头部 ---------- */
+  .app-header{text-align:center;padding:6px 0 2px}
+  .app-header h1{
+    margin:0 0 4px;
+    font-size:24px;
+    font-weight:700;
+    letter-spacing:.5px;
+  }
+  .app-header p{
+    margin:0;
+    font-size:13.5px;
+    color:var(--muted);
+  }
+
+  /* ---------- 标签页 ---------- */
+  .tabs{
+    display:flex;
+    gap:10px;
+    padding:4px;
+    background:var(--card);
+    border:1px solid var(--line);
+    border-radius:14px;
+  }
+  .tab{
+    flex:1;
+    appearance:none;
+    border:0;
+    background:transparent;
+    color:var(--muted);
+    font:inherit;
+    font-size:14.5px;
+    font-weight:600;
+    padding:11px 8px;
+    border-radius:10px;
+    cursor:pointer;
+    transition:background .18s,color .18s;
+    user-select:none;
+  }
+  .tab.active{
+    background:var(--primary);
+    color:#fff;
+    box-shadow:0 4px 14px rgba(59,130,246,.28);
+  }
+
+  /* ---------- 面板 ---------- */
+  .panel{display:none;flex-direction:column;gap:14px}
+  .panel.active{display:flex}
+
+  /* 接收面板左右分栏：左=摄像头，右=结果+历史 */
+  .receive-layout{
+    display:flex;
+    gap:16px;
+    align-items:flex-start;
+  }
+  .receive-left{flex:1;min-width:0;display:flex;flex-direction:column;gap:16px}
+  .receive-right{
+    width:300px;flex-shrink:0;
+    display:flex;flex-direction:column;gap:16px;
+  }
+  /* 窄屏（手机）自动堆叠成上下布局 */
+  @media (max-width:720px){
+    .receive-layout{flex-direction:column}
+    .receive-right{width:100%}
+  }
+
+  /* ---------- 通用卡片 ---------- */
+  .card{
+    background:var(--card);
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    padding:14px;
+    display:flex;
+    flex-direction:column;
+    gap:10px;
+  }
+  .label{font-size:13px;font-weight:600;color:var(--muted);letter-spacing:.3px}
+  .hint{font-size:12.5px;color:var(--muted)}
+  .hint.center{text-align:center}
+  .row{display:flex;align-items:center;gap:10px}
+  .row.between{justify-content:space-between}
+
+  /* ---------- 下拉框 ---------- */
+  .select{
+    width:100%;
+    appearance:none;
+    background:var(--card2) url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%2398a2b3' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>") no-repeat right 12px center;
+    border:1px solid var(--line);
+    border-radius:11px;
+    color:var(--text);
+    font:inherit;
+    font-size:14px;
+    padding:12px 38px 12px 12px;
+    cursor:pointer;
+    outline:none;
+  }
+  .select:focus{border-color:var(--primary)}
+
+  /* ---------- 按钮 ---------- */
+  .btn{
+    appearance:none;
+    border:1px solid var(--line);
+    background:var(--card2);
+    color:var(--text);
+    font:inherit;
+    font-size:14.5px;
+    font-weight:600;
+    padding:12px 16px;
+    border-radius:12px;
+    cursor:pointer;
+    transition:transform .08s ease,background .15s ease,border-color .15s ease,opacity .15s ease;
+    user-select:none;
+  }
+  .btn:active:not(:disabled){transform:scale(.97)}
+  .btn:disabled{opacity:.38;cursor:not-allowed}
+  .btn.primary{
+    background:var(--primary);
+    border-color:var(--primary);
+    color:#fff;
+    box-shadow:0 4px 14px rgba(59,130,246,.25);
+  }
+  .btn.primary:active:not(:disabled){background:var(--primary-d)}
+
+  .btn-mini{
+    appearance:none;
+    border:1px solid var(--line);
+    background:var(--card2);
+    color:var(--text);
+    font:inherit;
+    font-size:12.5px;
+    font-weight:600;
+    padding:7px 12px;
+    border-radius:9px;
+    cursor:pointer;
+    transition:background .15s,border-color .15s,transform .08s;
+    user-select:none;
+    white-space:nowrap;
+  }
+  .btn-mini:active{transform:scale(.95)}
+  .btn-mini.accent{border-color:var(--primary);color:#8ab4ff}
+
+  .btns{display:flex;flex-wrap:wrap;gap:9px}
+  .btns .btn{flex:1 1 120px}
+
+  /* ---------- 摄像头预览 ---------- */
+  .scanner-wrap{
+    position:relative;
+    width:100%;
+    min-height:360px;
+    background:#000;
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    overflow:hidden;
+  }
+  #qr-reader{width:100%;line-height:0}
+  #qr-reader video{
+    display:block;
+    width:100% !important;
+    height:auto !important;
+    max-height:70vh;
+  }
+  #qr-reader img{display:none}
+
+  .scanner-placeholder{
+    position:absolute;
+    inset:0;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    gap:6px;
+    background:var(--card);
+    color:var(--muted);
+    font-size:14px;
+    pointer-events:none;
+    text-align:center;
+    padding:20px;
+  }
+  .scanner-placeholder .big{font-size:38px;line-height:1}
+  .scanner-placeholder .small{font-size:12.5px;opacity:.8}
+
+  /* ---------- 状态 ---------- */
+  .status{
+    text-align:center;
+    font-size:13px;
+    color:var(--muted);
+    min-height:20px;
+    padding:0 4px;
+    transition:color .2s;
+  }
+  .status.ok{color:var(--ok)}
+  .status.error{color:var(--err)}
+  .status.warn{color:var(--warn)}
+
+  /* ---------- 识别结果 ---------- */
+  .result{
+    background:var(--card2);
+    border:1px solid var(--line);
+    border-radius:12px;
+    padding:12px;
+    font-size:14px;
+    line-height:1.6;
+    color:var(--muted);
+    word-break:break-word;
+    white-space:pre-wrap;
+    max-height:220px;
+    overflow:auto;
+    min-height:52px;
+  }
+  .result.has-value{color:var(--text)}
+
+  /* ---------- 历史记录 ---------- */
+  .history{display:flex;flex-direction:column;gap:7px}
+  .history .title{font-size:12px;color:var(--muted);padding-left:2px}
+  .history .item{
+    background:var(--card);
+    border:1px solid var(--line);
+    border-radius:10px;
+    padding:10px 12px;
+    font-size:12.5px;
+    color:var(--muted);
+    word-break:break-word;
+    cursor:pointer;
+    transition:border-color .15s,color .15s;
+  }
+  .history .item:hover{border-color:#3b4250;color:var(--text)}
+  .history .item:active{background:var(--card2)}
+
+  /* ---------- 发送区 ---------- */
+  .textarea{
+    width:100%;
+    min-height:120px;
+    resize:vertical;
+    background:var(--card2);
+    border:1px solid var(--line);
+    border-radius:12px;
+    color:var(--text);
+    font:inherit;
+    font-size:14.5px;
+    line-height:1.6;
+    padding:12px;
+    outline:none;
+    transition:border-color .15s;
+  }
+  .textarea:focus{border-color:var(--primary)}
+  .textarea::placeholder{color:#5b6472}
+
+  .qr-box{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    min-height:250px;
+    padding:18px;
+    background:var(--card);
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+  }
+  /* 二维码白底+白边：qrcode.js 生成的是 img 不是 canvas，两个选择器都要覆盖
+     四周 padding 即标准 QR 要求的 quiet zone（白边），扫码工具靠这个定位码块 */
+  .qr-box canvas,
+  .qr-box img,
+  #qrCanvas{
+    display:block;
+    background:#fff;
+    border-radius:6px;
+    max-width:100%;
+    height:auto;
+  }
+  #qrCanvas{
+    padding:14px;          /* 白边宽度，不够可在此调大 */
+    box-sizing:content-box; /* padding 不挤占二维码本身尺寸 */
+  }
+  .qr-empty{
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:8px;
+    color:var(--muted);
+    font-size:13px;
+    text-align:center;
+  }
+  .qr-empty .big{font-size:34px;line-height:1;opacity:.5}
+
+  /* ---------- 隐藏的图片识别容器 ---------- */
+  #qr-file-reader{
+    position:fixed;
+    left:-9999px;
+    top:-9999px;
+    width:2px;
+    height:2px;
+    overflow:hidden;
+    opacity:0;
+    pointer-events:none;
+  }
+
+  /* ---------- 桌面端适配：宽度由 .app 的 max-width 统一控制，不再单独限宽 ---------- */
+</style>
+</head>
+<body>
+
+<div class="app">
+
+  <header class="app-header">
+    <h1>二维码收发助手</h1>
+    <p>文字互传 · 文件互传 · 内网离线可用</p>
+  </header>
+
+  <!-- 模式切换 -->
+  <div class="tabs" role="tablist">
+    <button class="tab active" data-mode="receive" role="tab">📥 接收文字</button>
+    <button class="tab" data-mode="send" role="tab">📤 发送文字</button>
+    <button class="tab" data-mode="file" role="tab">📦 互传文件</button>
+  </div>
+
+  <!-- ============ 接收面板 ============ -->
+  <section class="panel active" id="panel-receive">
+    <div class="card">
+      <div class="row between">
+        <span class="label">选择摄像头</span>
+        <button class="btn-mini accent" id="refreshCamBtn">刷新列表</button>
+      </div>
+      <select id="camSelect" class="select">
+        <option value="">正在获取摄像头列表…</option>
+      </select>
+      <div class="hint" id="camHint">首次使用需要允许摄像头权限</div>
+    </div>
+
+    <div class="scanner-wrap">
+      <div id="qr-reader"></div>
+      <div class="scanner-placeholder" id="scannerPlaceholder">
+        <span class="big">📷</span>
+        <span>摄像头预览区</span>
+        <span class="small">点击下方「开始扫描」</span>
+      </div>
+    </div>
+
+    <div class="btns">
+      <button class="btn primary" id="startBtn">开始扫描</button>
+      <button class="btn" id="stopBtn" disabled>停止</button>
+      <button class="btn" id="fileBtn">图片识别</button>
+    </div>
+    <input type="file" id="fileInput" accept="image/*" hidden>
+
+    <div class="status" id="status">准备就绪</div>
+  </section>
+
+  <!-- 识别结果弹窗 -->
+  <div id="resultModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:999; align-items:center; justify-content:center;">
+    <div style="background:var(--card); border-radius:12px; padding:20px; width:90%; max-width:480px; box-shadow:0 8px 30px rgba(0,0,0,.3);">
+      <div style="font-weight:600; margin-bottom:10px; color:var(--primary);">✅ 识别成功</div>
+      <div id="modalResult" style="background:var(--bg); border:1px solid var(--line); border-radius:8px; padding:12px; max-height:300px; overflow:auto; word-break:break-all; font-size:14px; line-height:1.6;"></div>
+      <div style="display:flex; gap:10px; margin-top:14px; justify-content:flex-end;">
+        <button class="btn" id="modalClose">关闭</button>
+        <button class="btn primary" id="modalCopy">一键复制</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ 发送面板 ============ -->
+  <section class="panel" id="panel-send">
+
+    <div class="card">
+      <span class="label">输入要发送的文字（最多200字）</span>
+      <textarea id="textInput" class="textarea" rows="5"
+        placeholder="在这里输入或粘贴文字，点击下方「生成二维码」…" maxlength="200"></textarea>
+      <div class="row between">
+        <span class="hint" id="charCount">0 / 200 字</span>
+        <div style="display:flex; gap:8px;">
+          <button class="btn-mini" id="clearBtn">清空</button>
+          <button class="btn-mini accent" id="genBtn">生成二维码</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="hint center">输入文字后点「生成二维码」，用另一台设备扫码即可</div>
+  </section>
+
+  <!-- 生成二维码弹窗 -->
+  <div id="qrModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:999; align-items:center; justify-content:center;">
+    <div style="background:var(--card); border-radius:12px; padding:24px; text-align:center; box-shadow:0 8px 30px rgba(0,0,0,.3);">
+      <div style="font-weight:600; margin-bottom:14px;">📱 扫码接收文字</div>
+      <div id="qrCanvas" style="background:#fff; padding:14px; border-radius:8px; display:inline-block;"></div>
+      <div style="margin-top:14px;">
+        <button class="btn" id="qrModalClose">关闭</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ 文件互传面板 ============ -->
+  <section class="panel" id="panel-file">
+    <div class="card">
+      <span class="label">📦 文件互传（LIZARD）</span>
+      <div class="hint" style="margin:12px 0; line-height:1.8;">
+        需手机端和电脑端同时安装 LIZARD 软件，即可在手机与电脑之间互传文件。
+        <br>第一步：电脑端下载安装下方电脑版；
+        <br>第二步：手机扫码下载安装手机端；
+        <br>第三步：两端打开同一 WiFi 即可互传。
+      </div>
+      <div class="btns" style="gap:10px; flex-wrap:wrap;">
+        <button class="btn" id="genAndroidQr">📱 手机端下载二维码</button>
+        <a class="btn" href="/pc.msi" download style="text-decoration:none; display:inline-flex; align-items:center;">💻 电脑版下载</a>
+      </div>
+      <div class="hint center" id="lizardHint" style="margin-top:8px; display:none;">扫码下载安卓版安装包</div>
+    </div>
+    <div class="qr-box" id="lizardQrBox" style="display:none;">
+      <div id="qrCanvas2"></div>
+    </div>
+  </section>
+
+</div><!-- /app -->
+
+<!-- 隐藏容器：用于图片二维码识别 -->
+<div id="qr-file-reader"></div>
+
+<!-- 扫码库（本地化，内网离线可用） -->
+<script src="lib/html5-qrcode.min.js"></script>
+<!-- 二维码生成库（本地化，内网离线可用） -->
+<script src="lib/qrcode.min.js"></script>
+
+<script>
+window.addEventListener('error', function(e){
+  var h = document.getElementById('camHint');
+  if (h) h.textContent = 'JS错误: ' + e.message + ' (行' + e.lineno + ')';
+  if (h) h.style.color = 'red';
+});
+(function () {
+  'use strict';
+
+  const $ = id => document.getElementById(id);
+
+  /* ============ 元素引用 ============ */
+  const tabs        = document.querySelectorAll('.tab');
+  const panels      = { receive: $('panel-receive'), send: $('panel-send'), file: $('panel-file') };
+
+  const camSelect   = $('camSelect');
+  const camHint     = $('camHint');
+  const refreshBtn  = $('refreshCamBtn');
+  const startBtn    = $('startBtn');
+  const stopBtn     = $('stopBtn');
+  const fileBtn     = $('fileBtn');
+  const fileInput   = $('fileInput');
+  const statusEl    = $('status');
+  const placeholder = $('scannerPlaceholder');
+
+  const textInput   = $('textInput');
+  const charCount   = $('charCount');
+  const clearBtn    = $('clearBtn');
+  const qrCanvas    = $('qrCanvas');
+  const qrModal = $('qrModal');
+  const qrModalClose = $('qrModalClose');
+  const genBtn      = $('genBtn');
+
+  // 识别结果弹窗
+  const resultModal = $('resultModal');
+  const modalResult = $('modalResult');
+  const modalClose  = $('modalClose');
+  const modalCopy   = $('modalCopy');
+
+  /* ============ 运行时状态 ============ */
+  const state = {
+    mode: 'receive',
+    cameras: [],
+    scanning: false,
+    starting: false,
+    scanner: null,
+    fileScanner: null,
+    lastText: '',
+    lastTime: 0,
+    history: [],
+    qrToken: 0,
+    camLoadedOnce: false
+  };
+
+  /* ============ 通用工具 ============ */
+
+  function setStatus(text, type) {
+    statusEl.textContent = text;
+    statusEl.className = 'status' + (type ? ' ' + type : '');
+  }
+
+  function updateScanButtons() {
+    startBtn.disabled = state.scanning || state.starting;
+    stopBtn.disabled  = !state.scanning;
+  }
+
+  let audioCtx = null;
+  function beep() {
+    try {
+      audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = 920;
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      const t = audioCtx.currentTime;
+      gain.gain.setValueAtTime(0.0001, t);
+      gain.gain.exponentialRampToValueAtTime(0.16, t + 0.012);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.16);
+      osc.start(t);
+      osc.stop(t + 0.18);
+    } catch (e) { /* 静默失败 */ }
+  }
+
+  function copyText(text) {
+    if (!text) return;
+    const done = () => setStatus('已复制到剪贴板 ✅', 'ok');
+    const fail = () => setStatus('复制失败，请长按文字手动复制', 'error');
+
+    if (navigator.clipboard && window.isSecureContext) {
+      navigator.clipboard.writeText(text).then(done).catch(fail);
+    } else {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.setAttribute('readonly', '');
+      ta.style.cssText = 'position:fixed;left:-9999px;top:0;opacity:0';
+      document.body.appendChild(ta);
+      ta.select();
+      ta.setSelectionRange(0, ta.value.length);
+      let ok = false;
+      try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+      document.body.removeChild(ta);
+      ok ? done() : fail();
+    }
+  }
+
+  /* ============ 识别结果弹窗 ============ */
+
+  function showResultModal(text) {
+    modalResult.textContent = text;
+    resultModal.style.display = 'flex';
+  }
+
+  /* ============ 扫码成功回调 ============ */
+
+  function onScanSuccess(decodedText) {
+    const now = Date.now();
+    if (decodedText === state.lastText && now - state.lastTime < 1500) return;
+    state.lastText = decodedText;
+    state.lastTime = now;
+
+    showResultModal(decodedText);
+    setStatus('识别成功 ✅', 'ok');
+
+    if (navigator.vibrate) { try { navigator.vibrate(110); } catch (e) {} }
+    beep();
+
+    // 识别到后自动暂停：停止摄像头，保留结果
+    if (state.scanner) {
+      const s = state.scanner;
+      state.scanner = null;
+      s.stop().catch(function(){});
+    }
+    state.scanning = false;
+    updateScanButtons();
+  }
+
+  /* ============ 摄像头列表 ============ */
+
+  async function refreshCameras(silent) {
+    if (typeof Html5Qrcode === 'undefined') {
+      camHint.textContent = '扫码库加载失败，请检查网络后刷新页面';
+      camHint.style.color = 'var(--err)';
+      return;
+    }
+    if (!window.isSecureContext) {
+      camHint.textContent = '⚠️ 当前页面非 HTTPS，浏览器将禁止访问摄像头';
+      camHint.style.color = 'var(--warn)';
+    }
+
+    camHint.style.color = '';
+    camHint.textContent = '正在获取摄像头列表…';
+    if (!silent) refreshBtn.disabled = true;
+
+    try {
+      // 加超时，避免一直卡在"正在获取"
+      const cams = await Promise.race([
+        Html5Qrcode.getCameras(),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('获取摄像头超时：请检查浏览器地址栏左侧的摄像头权限，确保设为"允许"，然后按Ctrl+F5刷新')), 5000)
+        )
+      ]);
+      state.cameras = Array.isArray(cams) ? cams : [];
+      state.camLoadedOnce = true;
+
+      if (!state.cameras.length) {
+        camSelect.innerHTML = '<option value="">未检测到摄像头</option>';
+        camHint.textContent = '未检测到可用的摄像头设备';
+        camHint.style.color = 'var(--warn)';
+        return;
+      }
+
+      const prevId = camSelect.value;
+      camSelect.innerHTML = '';
+      state.cameras.forEach((c, i) => {
+        const opt = document.createElement('option');
+        opt.value = c.id;
+        opt.textContent = c.label || ('摄像头 ' + (i + 1));
+        camSelect.appendChild(opt);
+      });
+
+      // 优先恢复上次选择，否则优先选后置摄像头
+      let idx = 0;
+      if (prevId && state.cameras.some(c => c.id === prevId)) {
+        idx = state.cameras.findIndex(c => c.id === prevId);
+      } else {
+        const backIdx = state.cameras.findIndex(c =>
+          /back|rear|environment|后置|背面/i.test(c.label || '')
+        );
+        if (backIdx >= 0) idx = backIdx;
+      }
+      camSelect.value = state.cameras[idx].id;
+
+      camHint.textContent = '共 ' + state.cameras.length + ' 个摄像头，当前：' +
+        (state.cameras[idx].label || ('摄像头 ' + (idx + 1)));
+    } catch (err) {
+      const msg = (err && err.message) || String(err);
+      camHint.textContent = '获取摄像头失败：' + msg;
+      camHint.style.color = 'var(--err)';
+      camSelect.innerHTML = '<option value="">获取失败，点「刷新列表」重试</option>';
+    } finally {
+      if (!silent) refreshBtn.disabled = false;
+    }
+  }
+
+  /* ============ 开始 / 停止扫描 ============ */
+
+  async function startScan() {
+    if (state.scanning || state.starting) return;
+
+    if (typeof Html5Qrcode === 'undefined') {
+      setStatus('扫码库加载失败，请检查网络后刷新页面', 'error');
+      return;
+    }
+
+    if (!camSelect.value) {
+      await refreshCameras(true);
+    }
+    const deviceId = camSelect.value;
+    if (!deviceId) {
+      setStatus('请先选择一个可用的摄像头', 'error');
+      return;
+    }
+
+    state.starting = true;
+    updateScanButtons();
+    setStatus('正在启动摄像头…');
+
+    try {
+      if (state.scanner) {
+        try { await state.scanner.stop(); } catch (e) {}
+        try { state.scanner.clear(); } catch (e) {}
+        state.scanner = null;
+      }
+
+      placeholder.style.display = 'none';
+      state.scanner = new Html5Qrcode('qr-reader', { verbose: false });
+
+      await state.scanner.start(
+        { deviceId: { exact: deviceId } },
+        {
+          fps: 20,                          // 提高帧率，更快捕捉到码
+          qrbox: function (vw, vh) {
+            // 扫码框缩小到60%，减少每帧解码像素，识别更快
+            const size = Math.floor(Math.min(vw, vh) * 0.6);
+            return { width: size, height: size };
+          }
+        },
+        onScanSuccess,
+        function () { /* 每帧未识别到码，忽略 */ }
+      );
+
+      state.scanning = true;
+      setStatus('正在扫描… 请勿晃动手机，对准二维码即可', 'ok');
+    } catch (err) {
+      const msg = (err && err.message) || String(err);
+      setStatus('启动摄像头失败：' + msg, 'error');
+      placeholder.style.display = 'flex';
+      if (state.scanner) {
+        try { state.scanner.clear(); } catch (e) {}
+        state.scanner = null;
+      }
+    } finally {
+      state.starting = false;
+      updateScanButtons();
+    }
+  }
+
+  async function stopScan() {
+    if (state.scanner) {
+      try { await state.scanner.stop(); } catch (e) {}
+      try { state.scanner.clear(); } catch (e) {}
+      state.scanner = null;
+    }
+    state.scanning = false;
+    placeholder.style.display = 'flex';
+    updateScanButtons();
+  }
+
+  /* ============ 图片识别 ============ */
+
+  async function scanImageFile(file) {
+    if (typeof Html5Qrcode === 'undefined') {
+      setStatus('扫码库未加载', 'error');
+      return;
+    }
+    setStatus('正在识别图片中的二维码…');
+    try {
+      if (!state.fileScanner) {
+        state.fileScanner = new Html5Qrcode('qr-file-reader', { verbose: false });
+      }
+      const text = await state.fileScanner.scanFile(file, false);
+      onScanSuccess(text);
+    } catch (e) {
+      setStatus('图片中未识别到二维码', 'error');
+    }
+    fileInput.value = '';
+  }
+
+  /* ============ 二维码生成 ============ */
+
+  let qrTimer = null;
+
+  function scheduleRenderQR(delay) {
+    clearTimeout(qrTimer);
+    qrTimer = setTimeout(renderQR, delay == null ? 260 : delay);
+  }
+
+  function renderQR() {
+    const text = textInput.value;
+    charCount.textContent = text.length + ' / 200 字';
+
+    if (!text.trim()) {
+      setStatus('请先输入文字', 'warn');
+      return;
+    }
+
+    if (typeof QRCode === 'undefined') {
+      setStatus('二维码库加载失败，请刷新页面', 'error');
+      return;
+    }
+
+    qrCanvas.innerHTML = '';
+    new QRCode(qrCanvas, {
+      text: text,
+      width: 240,
+      height: 240,
+      colorDark: '#000000',
+      colorLight: '#ffffff',
+      correctLevel: QRCode.CorrectLevel.H
+    });
+    qrModal.style.display = 'flex';
+    setStatus('二维码已生成', 'ok');
+  }
+
+  function qrBoxWidth() {
+    const box = qrCanvas.parentElement;
+    const w = box ? box.clientWidth : 0;
+    return w > 40 ? w : 320;
+  }
+
+  /* ============ 模式切换 ============ */
+
+  function switchMode(mode) {
+    if (mode === state.mode) return;
+
+    // 离开接收模式时，停止摄像头
+    if (state.mode === 'receive' && state.scanning) {
+      stopScan();
+    }
+
+    state.mode = mode;
+
+    tabs.forEach(t => {
+      const on = t.dataset.mode === mode;
+      t.classList.toggle('active', on);
+      t.setAttribute('aria-selected', on ? 'true' : 'false');
+    });
+
+    Object.keys(panels).forEach(k => {
+      panels[k].classList.toggle('active', k === mode);
+    });
+
+    if (mode === 'receive') {
+      if (!state.camLoadedOnce) {
+        refreshCameras(true);
+      }
+    }
+  }
+
+  /* ============ 事件绑定 ============ */
+
+  tabs.forEach(t => {
+    t.addEventListener('click', () => switchMode(t.dataset.mode));
+  });
+
+  refreshBtn.addEventListener('click', () => refreshCameras(false));
+  startBtn.addEventListener('click', startScan);
+  stopBtn.addEventListener('click', async () => {
+    await stopScan();
+    setStatus('已停止扫描');
+  });
+
+  fileBtn.addEventListener('click', () => fileInput.click());
+  fileInput.addEventListener('change', e => {
+    const file = e.target.files && e.target.files[0];
+    if (file) scanImageFile(file);
+  });
+
+  // 切换摄像头：如果正在扫描，则自动重启
+  camSelect.addEventListener('change', async () => {
+    const opt = camSelect.options[camSelect.selectedIndex];
+    if (opt) camHint.textContent = '当前：' + opt.textContent;
+
+    if (state.scanning) {
+      await stopScan();
+      await startScan();
+    }
+  });
+
+  // 发送面板：输入时只更新字数，不实时生成二维码
+  textInput.addEventListener('input', () => {
+    if (textInput.value.length > 200) {
+      textInput.value = textInput.value.slice(0, 200);
+      setStatus('最多200字，已自动截断', 'warn');
+    }
+    charCount.textContent = textInput.value.length + ' / 200 字';
+  });
+  clearBtn.addEventListener('click', () => {
+    textInput.value = '';
+    textInput.focus();
+    charCount.textContent = '0 / 200 字';
+  });
+  genBtn.addEventListener('click', () => renderQR());
+  qrModalClose.addEventListener('click', () => { qrModal.style.display = 'none'; });
+
+  // 识别结果弹窗按钮
+  modalClose.addEventListener('click', () => { resultModal.style.display = 'none'; });
+  modalCopy.addEventListener('click', () => {
+    copyText(modalResult.textContent);
+    modalCopy.textContent = '已复制 ✓';
+    setTimeout(() => modalCopy.textContent = '一键复制', 1500);
+  });
+
+  // 文件互传：手机端下载二维码
+  const ANDROID_URL = 'https://gh-proxy.com/https://github.com/FNWTalon/LIZARD/releases/download/v0.6/lizard-0.6-alpha.apk';
+  document.getElementById('genAndroidQr').addEventListener('click', () => {
+    const box = document.getElementById('lizardQrBox');
+    const mount = document.getElementById('qrCanvas2');
+    mount.innerHTML = '';
+    new QRCode(mount, {
+      text: ANDROID_URL,
+      width: 220,
+      height: 220,
+      colorDark: '#000000',
+      colorLight: '#ffffff',
+      correctLevel: QRCode.CorrectLevel.M
+    });
+    box.style.display = 'block';
+    document.getElementById('lizardHint').style.display = 'block';
+  });
+
+  // 窗口尺寸变化时重绘二维码
+  let resizeTimer = null;
+  window.addEventListener('resize', () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => {
+      if (state.mode === 'send' && textInput.value.trim()) renderQR();
+    }, 220);
+  });
+
+  // 页面隐藏 / 离开时释放摄像头
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden && state.scanning) {
+      stopScan();
+      setStatus('页面已隐藏，扫描已暂停');
+    }
+  });
+  window.addEventListener('pagehide', () => {
+    if (state.scanner) { try { state.scanner.stop(); } catch (e) {} }
+  });
+
+  /* ============ 初始化 ============ */
+
+  try {
+    updateScanButtons();
+
+    if (!window.isSecureContext) {
+      setStatus('⚠️ 当前非 HTTPS 环境，浏览器会禁止调用摄像头', 'warn');
+    }
+
+    // 默认进入接收面板：尝试拉取摄像头列表（会触发一次权限请求）
+    refreshCameras(true);
+  } catch (err) {
+    // 调试用：把错误显示到 camHint 上
+    document.getElementById('camHint').textContent = '初始化错误: ' + err.message;
+    document.getElementById('camHint').style.color = 'red';
+  }
+
+})();
+</script>
+</body>
+</html>
